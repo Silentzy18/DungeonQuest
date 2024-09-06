@@ -35,17 +35,24 @@ local function stopTween()
     end
 end
 
--- Function to calculate a safe dodge spot based on multiple parts
-local function calculateSafeDodgeSpot()
+-- Function to calculate the average safe direction to dodge from all parts
+local function calculateSafeDodgeDirection()
     local totalDodgeVector = Vector3.new(0, 0, 0)
     local dodgeCount = 0
+    local closestPartDistance = math.huge  -- Track the closest part
 
-    -- Calculate a dodge direction that keeps the player away from all parts
+    -- Calculate dodge direction based on all parts
     for _, part in pairs(dodgingParts) do
         if part:IsDescendantOf(Workspace) then
             local distanceToPart = (part.Position - humanoidRootPart.Position).Magnitude
+
             if distanceToPart <= getgenv().dodgeRange then
-                -- Calculate the direction away from the part
+                -- Dodge the closest part first
+                if distanceToPart < closestPartDistance then
+                    closestPartDistance = distanceToPart
+                end
+
+                -- Calculate direction away from the part
                 local dodgeDirection = (humanoidRootPart.Position - part.Position).Unit
                 totalDodgeVector = totalDodgeVector + dodgeDirection
                 dodgeCount = dodgeCount + 1
@@ -53,24 +60,27 @@ local function calculateSafeDodgeSpot()
         end
     end
 
-    -- If we need to dodge, calculate the safe spot by averaging the dodge directions
+    -- If we need to dodge, return the averaged dodge direction and dynamic buffer size
     if dodgeCount > 0 then
         local averageDodgeVector = totalDodgeVector.Unit
-        local dodgePosition = humanoidRootPart.Position + averageDodgeVector * (getgenv().dodgeRange + getgenv().dodgeBuffer)
-        return dodgePosition
+        local dodgeBuffer = getgenv().dodgeBaseBuffer + (dodgeCount * getgenv().dodgeDynamicBufferMultiplier)  -- Dynamically adjust buffer
+        return averageDodgeVector, dodgeBuffer
     end
 
-    return nil  -- No dodging needed
+    return nil, nil  -- No dodging needed
 end
 
--- Function to teleport the player to a safe dodge spot
+-- Function to teleport the player to the calculated safe dodge spot
 local function dodgeToSafety(enemy)
-    local safeDodgePosition = calculateSafeDodgeSpot()
+    local dodgeDirection, dodgeBuffer = calculateSafeDodgeDirection()
 
-    if safeDodgePosition then
+    if dodgeDirection then
+        -- Calculate dodge position based on the direction and dynamic buffer
+        local dodgePosition = humanoidRootPart.Position + dodgeDirection * (getgenv().dodgeRange + dodgeBuffer)
+
         -- Stop any existing movement and teleport to the safe dodge spot
         stopTween()
-        humanoidRootPart.CFrame = CFrame.new(safeDodgePosition)
+        humanoidRootPart.CFrame = CFrame.new(dodgePosition)
 
         -- After dodging, move back to a safe spot behind the enemy
         if enemy and enemy:FindFirstChild("HumanoidRootPart") then
@@ -79,7 +89,7 @@ local function dodgeToSafety(enemy)
             humanoidRootPart.CFrame = CFrame.new(safePosition, enemyRootPart.Position)
         end
 
-        -- Clear dodged parts
+        -- Clear dodged parts after teleport
         dodgingParts = {}
     end
 end
@@ -89,7 +99,7 @@ Workspace.ChildAdded:Connect(function(newObject)
     if newObject:IsA("Part") then
         -- Add new part to the dodging list
         table.insert(dodgingParts, newObject)
-        -- Start the dodging process
+        -- Dodge to safety as soon as a part is detected
         dodgeToSafety(nil)
     end
 end)
