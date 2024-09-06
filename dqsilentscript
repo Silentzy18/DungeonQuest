@@ -1,4 +1,3 @@
-
 -- Services
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
@@ -24,14 +23,6 @@ end)
 -- Initialize character if already loaded
 if LocalPlayer.Character then
     initializeCharacter(LocalPlayer.Character)
-end
-
--- Stop current tween movement
-local function stopTween()
-    if currentTween then
-        currentTween:Cancel()
-        currentTween = nil  -- Clear the tween reference after stopping
-    end
 end
 
 -- Function to calculate the dodge direction and optimal dodge distance
@@ -79,8 +70,7 @@ local function prioritizeDodging(enemy)
         -- Calculate the dodge position based on the direction and distance
         local dodgePosition = humanoidRootPart.Position + dodgeDirection * dodgeDistance
 
-        -- Stop any existing movement and teleport to the safe dodge spot
-        stopTween()
+        -- Teleport to the safe dodge spot
         humanoidRootPart.CFrame = CFrame.new(dodgePosition)
 
         -- Recheck if there are still parts nearby and dodge again if necessary
