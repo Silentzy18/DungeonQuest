@@ -1,12 +1,15 @@
+getgenv().autofarm = true  -- Toggle to enable/disable autofarming
+getgenv().tweenSpeed = 0.5  -- Adjust this to change how fast the player moves (lower values are faster)
+getgenv().distanceBehind = 10  -- Adjust how far behind the target you want to be
+getgenv().heightAbove = 5  -- Adjust how high above the target you want to be
+
 -- Services
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local RunService = game:GetService("RunService")
 
 -- Variables to store character components
 local humanoidRootPart, humanoid
-local canDodge = true  -- Variable to control dodge cooldown
 
 -- Function to initialize character components after respawn
 local function initializeCharacter(character)
@@ -48,40 +51,6 @@ coroutine.wrap(function()
     end
 end)()
 
--- Function to dodge the enemy attack
-local function dodgeAttack(target)
-    if not humanoidRootPart or not humanoid or not canDodge then return end
-
-    -- Check if the target has a valid HumanoidRootPart
-    local targetRootPart = target:FindFirstChild("HumanoidRootPart")
-    if not targetRootPart then return end
-
-    -- Calculate the dodge direction (left or right from the target's position)
-    local dodgeDirection = humanoidRootPart.CFrame.RightVector * getgenv().dodgeDistance  -- Dodge to the side
-    local dodgePosition = humanoidRootPart.Position + dodgeDirection
-
-    -- Use TweenService to dodge to the side quickly
-    local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)  -- Faster tween for dodging
-    local dodgeTween = TweenService:Create(humanoidRootPart, tweenInfo, {Position = dodgePosition})
-    dodgeTween:Play()
-
-    -- Set cooldown for the dodge
-    canDodge = false
-    wait(getgenv().dodgeCooldown)  -- Dodge cooldown before next dodge
-    canDodge = true
-end
-
--- Function to detect when the enemy is attacking
-local function detectEnemyAttack(target)
-    -- In this example, we'll assume the enemy is attacking based on some condition (e.g., an attack animation or pattern)
-    -- For now, we'll simulate an attack detection every few seconds.
-    if target:FindFirstChild("Humanoid") and target.Humanoid.Health > 0 then
-        -- Replace this condition with actual game-specific attack detection logic
-        return math.random(1, 10) > 8  -- Simulating attack detection with random chance
-    end
-    return false
-end
-
 -- Function to keep the player behind the target and always facing the target using continuous tweens
 local function moveAndStayBehindTarget(target)
     if not humanoidRootPart or not humanoid then return end
@@ -109,11 +78,6 @@ local function moveAndStayBehindTarget(target)
         local tweenInfo = TweenInfo.new(getgenv().tweenSpeed, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
         local tween = TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = finalCFrame})
         tween:Play()
-
-        -- Detect if the enemy is attacking
-        if detectEnemyAttack(target) then
-            dodgeAttack(target)  -- Dodge when an attack is detected
-        end
 
         -- Ensure the tween continues smoothly by waiting for a short interval and recalculating
         wait(0.05)  -- Short interval to update the position regularly
