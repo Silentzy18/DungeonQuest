@@ -24,7 +24,7 @@ if LocalPlayer.Character then
     initializeCharacter(LocalPlayer.Character)
 end
 
--- Function to dodge away from a part
+-- Function to teleport the entire character when dodging
 local function dodgePart(part)
     if not canDodge or not humanoidRootPart then return end
 
@@ -37,13 +37,18 @@ local function dodgePart(part)
         local direction = (humanoidRootPart.Position - part.Position).Unit  -- Direction vector away from the part
         local teleportPosition = humanoidRootPart.Position + direction * getgenv().dodgeRange
 
-        -- Move the player to the new position
+        -- Teleport the whole character using CFrame
         humanoidRootPart.CFrame = CFrame.new(teleportPosition)
 
         -- Set dodge cooldown
         canDodge = false
         wait(getgenv().dodgeCooldown)  -- Wait for cooldown before dodging again
         canDodge = true
+
+        -- Wait until the part is removed from the workspace before resuming tweening
+        repeat
+            wait(0.1)
+        until not part.Parent  -- Wait until the part is no longer in the workspace
     end
 end
 
