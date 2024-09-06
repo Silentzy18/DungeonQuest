@@ -1,3 +1,4 @@
+
 -- Services
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
@@ -33,40 +34,35 @@ local function stopTween()
     end
 end
 
--- Function to dodge away from a part
-local function dodgeAllParts()
-    -- Check each part in the dodgingParts table
-    for _, part in pairs(dodgingParts) do
-        if not part or not part:IsDescendantOf(Workspace) then
-            -- Remove part if it no longer exists in the workspace
-            table.remove(dodgingParts, _)
-        elseif humanoidRootPart then
-            -- Calculate the distance to the part
-            local distanceToPart = (part.Position - humanoidRootPart.Position).Magnitude
+-- Function to smoothly dodge away from a part
+local function dodgeSmoothly(part)
+    if not humanoidRootPart then return end
 
-            -- If the part is within the dodge range, teleport the player away
-            if distanceToPart <= getgenv().dodgeRange then
-                -- Stop tweening to ensure dodge works
-                stopTween()
+    -- Calculate the distance to the part
+    local distanceToPart = (part.Position - humanoidRootPart.Position).Magnitude
 
-                -- Calculate a position outside the part's range (teleport in the opposite direction)
-                local direction = (humanoidRootPart.Position - part.Position).Unit  -- Direction vector away from the part
-                local teleportPosition = humanoidRootPart.Position + direction * (getgenv().dodgeRange + 5)  -- Move farther away
+    -- If the part is within the dodge range, smoothly move the player away
+    if distanceToPart <= getgenv().dodgeRange then
+        -- Stop tweening to ensure dodge works
+        stopTween()
 
-                -- Teleport the whole character using CFrame
-                humanoidRootPart.CFrame = CFrame.new(teleportPosition)
+        -- Calculate a position just outside the dodge range (teleport in the opposite direction)
+        local direction = (humanoidRootPart.Position - part.Position).Unit  -- Direction vector away from the part
+        local dodgePosition = humanoidRootPart.Position + direction * (getgenv().dodgeRange + getgenv().dodgeBuffer)  -- Move slightly farther for safety
 
-                -- Wait for a fixed fast dodge time
-                wait(getgenv().dodgeTime)
+        -- Create a tween to smoothly move the player to the dodge position
+        local dodgeTweenInfo = TweenInfo.new(getgenv().dodgeTime, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+        currentTween = TweenService:Create(humanoidRootPart, dodgeTweenInfo, {CFrame = CFrame.new(dodgePosition)})
+        currentTween:Play()
 
-                -- Wait until all parts in dodgingParts are gone before resuming tweening
-                while #dodgingParts > 0 do
-                    wait(0.05)  -- Keep checking if the parts are still present
-                    for i = #dodgingParts, 1, -1 do
-                        if not dodgingParts[i]:IsDescendantOf(Workspace) then
-                            table.remove(dodgingParts, i)  -- Remove the part if it no longer exists
-                        end
-                    end
+        -- Wait for the dodge tween to complete
+        currentTween.Completed:Wait()
+
+        -- Remove part from dodge list once dodge is complete
+        if part.Parent then
+            for i = #dodgingParts, 1, -1 do
+                if dodgingParts[i] == part then
+                    table.remove(dodgingParts, i)
                 end
             end
         end
@@ -78,8 +74,8 @@ Workspace.ChildAdded:Connect(function(newObject)
     if newObject:IsA("Part") then
         -- Add the new part to the dodgingParts table
         table.insert(dodgingParts, newObject)
-        -- Start dodging all detected parts immediately
-        dodgeAllParts()
+        -- Start dodging the detected part smoothly
+        dodgeSmoothly(newObject)
     end
 end)
 
