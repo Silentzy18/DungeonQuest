@@ -2,9 +2,11 @@
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
 
 -- Variables to store character components
 local humanoidRootPart, humanoid
+local canDodge = true  -- Controls the dodge cooldown
 
 -- Function to initialize character components after respawn
 local function initializeCharacter(character)
@@ -21,6 +23,36 @@ end)
 if LocalPlayer.Character then
     initializeCharacter(LocalPlayer.Character)
 end
+
+-- Function to dodge away from a part
+local function dodgePart(part)
+    if not canDodge or not humanoidRootPart then return end
+
+    -- Calculate the distance to the part
+    local distanceToPart = (part.Position - humanoidRootPart.Position).Magnitude
+
+    -- If the part is within the dodge range, teleport the player away
+    if distanceToPart <= getgenv().dodgeRange then
+        -- Calculate a position outside the part's range (teleport in the opposite direction)
+        local direction = (humanoidRootPart.Position - part.Position).Unit  -- Direction vector away from the part
+        local teleportPosition = humanoidRootPart.Position + direction * getgenv().dodgeRange
+
+        -- Move the player to the new position
+        humanoidRootPart.CFrame = CFrame.new(teleportPosition)
+
+        -- Set dodge cooldown
+        canDodge = false
+        wait(getgenv().dodgeCooldown)  -- Wait for cooldown before dodging again
+        canDodge = true
+    end
+end
+
+-- Monitor for parts added to the workspace
+Workspace.ChildAdded:Connect(function(newObject)
+    if newObject:IsA("Part") then
+        dodgePart(newObject)
+    end
+end)
 
 -- Function to attack the enemy rapidly
 local function attackEnemy()
@@ -59,8 +91,8 @@ local function moveAndFaceTarget(target)
         -- Calculate the current distance to the target
         local currentDistance = (targetRootPart.Position - humanoidRootPart.Position).Magnitude
         
-        -- Recalculate the position behind the target only if the player is far enough away
-        if currentDistance > 3 then  -- Only move if farther than 3 studs
+        -- Only move if the player is far enough away (greater than 3 studs)
+        if currentDistance > 3 then
             -- Recalculate the position behind the target based on its LookVector (facing direction)
             local behindOffset = targetRootPart.CFrame.LookVector * -getgenv().distanceBehind
             local targetPosition = targetRootPart.Position + behindOffset
@@ -68,15 +100,18 @@ local function moveAndFaceTarget(target)
             -- Calculate the CFrame to move behind the enemy and face it
             local targetCFrame = CFrame.new(targetPosition, targetRootPart.Position)  -- Align to face the target
 
-            -- Use TweenService to smoothly move and face the target
+            -- Smooth movement with TweenService
             local tweenDuration = 1 / math.max(0.1, getgenv().tweenSpeed)  -- Prevent divide by zero
             local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
             local tween = TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = targetCFrame})
             tween:Play()
-        end
 
-        -- Throttle the position update loop based on distance from target
-        wait(currentDistance > 10 and 0.05 or 0.1)  -- Adjust wait time dynamically based on distance
+            -- Wait for tween to complete before updating again (tween.Completed could be used if you want to block execution)
+            wait(tweenDuration)
+        else
+            -- If close enough, wait a little before checking again
+            wait(0.1)
+        end
     end
 end
 
