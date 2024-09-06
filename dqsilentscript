@@ -35,14 +35,7 @@ local function getFixedPositionBehindTarget(targetRootPart)
     return fixedAngleCFrame
 end
 
--- Function to stop any ongoing movement (if necessary)
-local function stopTween()
-    if humanoidRootPart and humanoidRootPart:FindFirstChild("TweenPosition") then
-        humanoidRootPart.TweenPosition:Cancel()
-    end
-end
-
--- Move to the target position and stay behind the target at a fixed position and angle
+-- Function to move the character behind the target at a fixed position and angle (initial movement)
 local function moveAndStayBehindTarget(target)
     if not humanoidRootPart or not humanoid then return end
     local targetRootPart = target:FindFirstChild("HumanoidRootPart")
@@ -51,22 +44,17 @@ local function moveAndStayBehindTarget(target)
     -- Move to the fixed position behind and above the target and face the target
     local fixedPosition = getFixedPositionBehindTarget(targetRootPart)
 
-    -- Tween the character to the fixed position initially
-    local tweenInfo = TweenInfo.new(1 / getgenv().tweenSpeed, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
-    local tween = TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = fixedPosition})
-    tween:Play()
-    tween.Completed:Wait()
+    -- Move the character to the desired position (one-time tweening)
+    humanoidRootPart.CFrame = fixedPosition
 
-    -- Constantly check if the character is still in the right position, adjust only if needed
+    -- Recheck the character's position only if necessary
     coroutine.wrap(function()
         while getgenv().autofarm and target:FindFirstChild("Humanoid") and target.Humanoid.Health > 0 do
-            -- Check the distance to the fixed position
-            local currentDistance = (humanoidRootPart.Position - fixedPosition.Position).Magnitude
-            if currentDistance > 1 then
-                -- Reposition the character if they move too far from the fixed position
-                humanoidRootPart.CFrame = fixedPosition
-            end
-            wait(0.1)  -- Small wait before rechecking
+            -- Ensure the character is always facing the target
+            local currentPosition = getFixedPositionBehindTarget(targetRootPart)
+            humanoidRootPart.CFrame = currentPosition
+
+            wait(0.1)  -- Wait before rechecking
         end
     end)()
 end
@@ -97,7 +85,7 @@ end)()
 
 -- Function to handle dodging (teleporting to safety)
 local function prioritizeDodging()
-    -- (Dodge logic implementation is kept as per previous logic)
+    -- (Dodge logic remains as is)
 end
 
 -- Constantly check for dodging and ensure the player is always safe
@@ -142,12 +130,12 @@ local function autoFarm()
             for _, enemy in pairs(enemies) do
                 if not getgenv().autofarm then return end
 
-                -- Start dodging in parallel while attacking and moving to target
+                -- Start dodging in parallel while attacking and staying behind the target
                 coroutine.wrap(function()
                     constantlyCheckForDodging()
                 end)()
 
-                -- Move behind and above the enemy and stay in position
+                -- Move behind the enemy and maintain the position
                 moveAndStayBehindTarget(enemy)
 
                 -- Wait for the enemy to die
