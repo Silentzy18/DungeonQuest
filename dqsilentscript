@@ -7,6 +7,7 @@ local LocalPlayer = Players.LocalPlayer
 -- Variables to store character components
 local humanoidRootPart, humanoid
 local dodgingParts = {}  -- Store parts that require dodging
+local currentTween  -- Store the tween to adjust the character's position
 
 -- Function to initialize character components after respawn
 local function initializeCharacter(character)
@@ -35,26 +36,32 @@ local function getFixedPositionBehindTarget(targetRootPart)
     return fixedAngleCFrame
 end
 
--- Function to move the character behind the target at a fixed position and angle (initial movement)
-local function moveAndStayBehindTarget(target)
+-- Tween to the target and maintain a steady position behind and above
+local function tweenAndStayBehindTarget(target)
     if not humanoidRootPart or not humanoid then return end
     local targetRootPart = target:FindFirstChild("HumanoidRootPart")
     if not targetRootPart then return end
 
-    -- Move to the fixed position behind and above the target and face the target
-    local fixedPosition = getFixedPositionBehindTarget(targetRootPart)
-
-    -- Move the character to the desired position (one-time tweening)
-    humanoidRootPart.CFrame = fixedPosition
-
-    -- Recheck the character's position only if necessary
+    -- Continuously update position and maintain a steady tween towards the target
     coroutine.wrap(function()
         while getgenv().autofarm and target:FindFirstChild("Humanoid") and target.Humanoid.Health > 0 do
-            -- Ensure the character is always facing the target
-            local currentPosition = getFixedPositionBehindTarget(targetRootPart)
-            humanoidRootPart.CFrame = currentPosition
+            -- Get the fixed position behind and above the target
+            local fixedPosition = getFixedPositionBehindTarget(targetRootPart)
 
-            wait(0.1)  -- Wait before rechecking
+            -- Create the tween to smoothly move and stay behind the target
+            if not currentTween or not currentTween.Playing then
+                local tweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, true)  -- Continuous tween
+                currentTween = TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = fixedPosition})
+                currentTween:Play()
+            end
+
+            -- Wait a bit before adjusting the position again
+            wait(0.1)
+        end
+
+        -- Stop the tween when the target dies
+        if currentTween then
+            currentTween:Cancel()
         end
     end)()
 end
@@ -130,13 +137,13 @@ local function autoFarm()
             for _, enemy in pairs(enemies) do
                 if not getgenv().autofarm then return end
 
-                -- Start dodging in parallel while attacking and staying behind the target
+                -- Start dodging in parallel while attacking and moving to target
                 coroutine.wrap(function()
                     constantlyCheckForDodging()
                 end)()
 
-                -- Move behind the enemy and maintain the position
-                moveAndStayBehindTarget(enemy)
+                -- Tween to the enemy and stay behind it
+                tweenAndStayBehindTarget(enemy)
 
                 -- Wait for the enemy to die
                 waitForEnemyToDie(enemy)
