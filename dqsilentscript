@@ -1,3 +1,4 @@
+
 -- Services
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
@@ -145,7 +146,7 @@ coroutine.wrap(function()
     end
 end)()
 
--- Move behind the target and face them
+-- Move behind the target and face them (fix tween speed to original intent)
 local function moveAndFaceTarget(target)
     if not humanoidRootPart or not humanoid then return end
 
@@ -163,8 +164,8 @@ local function moveAndFaceTarget(target)
             -- Create a fast-facing CFrame to look at the target
             local targetCFrame = CFrame.new(targetPosition, targetRootPart.Position)
 
-            -- Slower tween movement towards the target
-            local tweenDuration = 2 / math.max(0.1, getgenv().tweenSpeed)  -- Slower duration for cautious movement
+            -- Fixed tween movement towards the target (using tweenSpeed as intended)
+            local tweenDuration = 2 / math.max(0.1, getgenv().tweenSpeed)  -- Ensure tweenSpeed only affects this movement
             local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
             currentTween = TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = targetCFrame})
             currentTween:Play()
