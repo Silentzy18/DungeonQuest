@@ -1,12 +1,10 @@
 -- Services
-local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
 local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
 
 -- Variables to store character components
 local humanoidRootPart, humanoid
-local currentTween  -- Store the current tween
 local dodgingParts = {}  -- Store parts that require dodging
 
 -- Function to initialize character components after respawn
@@ -62,7 +60,7 @@ local function calculateSafeDodgeDirection()
     return nil, nil  -- No dodging needed
 end
 
--- Function to handle teleporting the character to the safest dodge spot
+-- Function to teleport the character to the safest dodge spot
 local function prioritizeDodging(enemy)
     local dodgeDirection, dodgeDistance = calculateSafeDodgeDirection()
 
@@ -70,7 +68,7 @@ local function prioritizeDodging(enemy)
         -- Calculate the dodge position based on the direction and distance
         local dodgePosition = humanoidRootPart.Position + dodgeDirection * dodgeDistance
 
-        -- Teleport to the safe dodge spot
+        -- Teleport to the safe dodge spot (CFrame adjustment)
         humanoidRootPart.CFrame = CFrame.new(dodgePosition)
 
         -- Recheck if there are still parts nearby and dodge again if necessary
@@ -156,9 +154,7 @@ local function moveAndFaceTarget(target)
 
             -- Fixed tween movement towards the target (using tweenSpeed as intended)
             local tweenDuration = 2 / math.max(0.1, getgenv().tweenSpeed)  -- Ensure tweenSpeed only affects this movement
-            local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
-            currentTween = TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = targetCFrame})
-            currentTween:Play()
+            humanoidRootPart.CFrame = targetCFrame
 
             wait(tweenDuration)
         else
