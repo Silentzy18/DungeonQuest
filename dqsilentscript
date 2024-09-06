@@ -1,5 +1,4 @@
 
-
 -- Services
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
@@ -8,8 +7,8 @@ local Workspace = game:GetService("Workspace")
 
 -- Variables to store character components
 local humanoidRootPart, humanoid
-local currentTween  -- Store current tween to stop when necessary
-local dodgingParts = {}  -- Store parts that trigger dodge
+local currentTween  -- Store the current tween
+local dodgingParts = {}  -- Store parts that require dodging
 
 -- Function to initialize character components after respawn
 local function initializeCharacter(character)
@@ -35,8 +34,8 @@ local function stopTween()
     end
 end
 
--- Function to instantly dodge using teleportation
-local function teleportToSafety(part)
+-- Function to dodge to the safest spot using teleportation
+local function teleportToSafety(part, enemy)
     if not humanoidRootPart then return end
 
     local distanceToPart = (part.Position - humanoidRootPart.Position).Magnitude
@@ -44,14 +43,21 @@ local function teleportToSafety(part)
     if distanceToPart <= getgenv().dodgeRange then
         stopTween()
 
-        -- Calculate position just outside the part range
+        -- Calculate a position directly away from the part
         local direction = (humanoidRootPart.Position - part.Position).Unit
         local dodgePosition = humanoidRootPart.Position + direction * (getgenv().dodgeRange + getgenv().dodgeBuffer)
 
-        -- Instantly teleport to dodge position
+        -- Teleport to the dodge position
         humanoidRootPart.CFrame = CFrame.new(dodgePosition)
 
-        -- Remove the part from dodging list
+        -- Move back to a safe spot behind the enemy after dodging
+        if enemy and enemy:FindFirstChild("HumanoidRootPart") then
+            local enemyRootPart = enemy.HumanoidRootPart
+            local safePosition = enemyRootPart.Position - (enemyRootPart.CFrame.LookVector * getgenv().distanceBehind)
+            humanoidRootPart.CFrame = CFrame.new(safePosition, enemyRootPart.Position)
+        end
+
+        -- Remove part from dodging list after dodge
         if part.Parent then
             for i = #dodgingParts, 1, -1 do
                 if dodgingParts[i] == part then
@@ -76,7 +82,7 @@ local function attackEnemy()
         [1] = {
             [1] = {
                 ["animationLength"] = 0,
-                ["sentAt"] = tick()  -- Use tick() for the current time
+                ["sentAt"] = tick()  -- Use tick() for current time
             },
             [2] = "C"
         }
@@ -102,18 +108,17 @@ local function moveAndFaceTarget(target)
     if not targetRootPart then return end
 
     while getgenv().autofarm and target:FindFirstChild("Humanoid") and target.Humanoid.Health > 0 do
-        -- Calculate distance to the target
         local currentDistance = (targetRootPart.Position - humanoidRootPart.Position).Magnitude
 
-        -- Move only if far enough from the target
         if currentDistance > 3 then
+            -- Calculate the position behind the target
             local behindOffset = targetRootPart.CFrame.LookVector * -getgenv().distanceBehind
             local targetPosition = targetRootPart.Position + behindOffset
 
-            -- Calculate CFrame to face the target faster
+            -- Create a fast-facing CFrame to look at the target
             local targetCFrame = CFrame.new(targetPosition, targetRootPart.Position)
 
-            -- Smooth movement with faster tweening
+            -- Slower tween movement towards the target
             local tweenDuration = 1 / math.max(0.1, getgenv().tweenSpeed)
             local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
             currentTween = TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = targetCFrame})
