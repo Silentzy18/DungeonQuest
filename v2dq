@@ -1,0 +1,236 @@
+-- Services
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
+
+-- Variables to store character components
+local humanoidRootPart, humanoid
+local currentTween  -- Store the current tween
+local dodgingParts = {}  -- Store parts that require dodging
+
+-- Function to initialize character components after respawn
+local function initializeCharacter(character)
+    humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+    humanoid = character:WaitForChild("Humanoid")
+end
+
+-- Ensure the script continues after respawn
+LocalPlayer.CharacterAdded:Connect(function(character)
+    initializeCharacter(character)
+end)
+
+-- Initialize character if already loaded
+if LocalPlayer.Character then
+    initializeCharacter(LocalPlayer.Character)
+end
+
+-- Stop current tween movement
+local function stopTween()
+    if currentTween then
+        currentTween:Cancel()
+        currentTween = nil  -- Clear the tween reference after stopping
+    end
+end
+
+-- Function to calculate the safest dodge direction and distance in 3D
+local function calculateSafeDodgeDirection()
+    local totalDodgeVector = Vector3.new(0, 0, 0)
+    local dodgeCount = 0
+    local closestPartDistance = math.huge  -- Track the closest part
+
+    -- Calculate dodge direction based on all parts within range
+    for _, part in pairs(dodgingParts) do
+        if part:IsDescendantOf(Workspace) then
+            -- Calculate the 3D distance to the part (including vertical distance)
+            local distanceToPart = (part.Position - humanoidRootPart.Position).Magnitude
+
+            if distanceToPart <= getgenv().dodgeRange then
+                -- Track the closest part for prioritization
+                if distanceToPart < closestPartDistance then
+                    closestPartDistance = distanceToPart
+                end
+
+                -- Calculate 3D direction away from the part
+                local dodgeDirection = (humanoidRootPart.Position - part.Position).Unit
+                totalDodgeVector = totalDodgeVector + dodgeDirection
+                dodgeCount = dodgeCount + 1
+            end
+        end
+    end
+
+    -- If dodging is necessary, return the average dodge direction and dynamic buffer size
+    if dodgeCount > 0 then
+        local averageDodgeVector = totalDodgeVector.Unit
+        local dodgeBuffer = getgenv().dodgeBaseBuffer + (dodgeCount * getgenv().dodgeDynamicBufferMultiplier)  -- Adjust buffer dynamically
+        return averageDodgeVector, dodgeBuffer
+    end
+
+    return nil, nil  -- No dodging needed
+end
+
+-- Function to prioritize and teleport the player to the safest dodge spot
+local function prioritizeDodging(enemy)
+    local dodgeDirection, dodgeBuffer = calculateSafeDodgeDirection()
+
+    if dodgeDirection then
+        -- Calculate the dodge position based on the direction and buffer
+        local dodgePosition = humanoidRootPart.Position + dodgeDirection * (getgenv().dodgeRange + dodgeBuffer)
+
+        -- Stop any existing movement and instantly teleport to the safe dodge spot
+        stopTween()
+        humanoidRootPart.CFrame = CFrame.new(dodgePosition)
+
+        -- Recheck if there are still parts nearby and dodge again if necessary
+        for _, part in pairs(dodgingParts) do
+            local distanceToPart = (part.Position - humanoidRootPart.Position).Magnitude
+            if distanceToPart <= getgenv().dodgeRange then
+                prioritizeDodging(enemy)  -- Recursively dodge if necessary
+                break
+            end
+        end
+
+        -- After dodging, move back to a safe spot behind the enemy (only if safe)
+        if enemy and enemy:FindFirstChild("HumanoidRootPart") then
+            local enemyRootPart = enemy.HumanoidRootPart
+            local safePosition = enemyRootPart.Position - (enemyRootPart.CFrame.LookVector * getgenv().distanceBehind)
+            humanoidRootPart.CFrame = CFrame.new(safePosition, enemyRootPart.Position)
+        end
+
+        -- Clear dodged parts after successful dodge
+        dodgingParts = {}
+    end
+end
+
+-- Function to constantly check for new dangerous parts and dodge accordingly
+local function constantlyCheckForDodging(enemy)
+    while getgenv().autofarm do
+        prioritizeDodging(enemy)
+        wait(getgenv().dodgeCheckFrequency)  -- Check for dodging at a high frequency
+    end
+end
+
+-- Monitor parts added to workspace and initiate dodging
+Workspace.ChildAdded:Connect(function(newObject)
+    if newObject:IsA("Part") then
+        -- Add new part to the dodging list
+        table.insert(dodgingParts, newObject)
+        -- Start dodging as soon as a part is detected
+        prioritizeDodging(nil)
+    end
+end)
+
+-- Function to attack the enemy rapidly
+local function attackEnemy()
+    local args = {
+        [1] = {
+            [1] = {
+                ["animationLength"] = 0,
+                ["sentAt"] = tick()  -- Use tick() for the current time
+            },
+            [2] = "C"
+        }
+    }
+    game:GetService("ReplicatedStorage").dataRemoteEvent:FireServer(unpack(args))
+end
+
+-- Continuous fast attack loop
+coroutine.wrap(function()
+    while getgenv().autofarm do
+        pcall(function()
+            attackEnemy()
+        end)
+        wait(0.05)  -- Small wait for rapid attacks
+    end
+end)()
+
+-- Function to move behind the target and face them quickly
+local function moveAndFaceTarget(target)
+    if not humanoidRootPart or not humanoid then return end
+
+    local targetRootPart = target:FindFirstChild("HumanoidRootPart")
+    if not targetRootPart then return end
+
+    while getgenv().autofarm and target:FindFirstChild("Humanoid") and target.Humanoid.Health > 0 do
+        local currentDistance = (targetRootPart.Position - humanoidRootPart.Position).Magnitude
+
+        if currentDistance > 3 then
+            -- Calculate the position behind the target
+            local behindOffset = targetRootPart.CFrame.LookVector * -getgenv().distanceBehind
+            local targetPosition = targetRootPart.Position + behindOffset
+
+            -- Create a fast-facing CFrame to look at the target
+            local targetCFrame = CFrame.new(targetPosition, targetRootPart.Position)
+
+            -- Slower tween movement towards the target
+            local tweenDuration = 1 / math.max(0.1, getgenv().tweenSpeed)
+            local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
+            currentTween = TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = targetCFrame})
+            currentTween:Play()
+
+            wait(tweenDuration)
+        else
+            wait(0.1)
+        end
+    end
+end
+
+-- Wait until the enemy is dead
+local function waitForEnemyToDie(enemy)
+    local enemyHumanoid = enemy:FindFirstChild("Humanoid")
+    if enemyHumanoid then
+        while enemyHumanoid.Health > 0 and getgenv().autofarm do
+            wait(0.1)
+        end
+    end
+end
+
+-- Find all enemies in the dungeon folder
+local function findEnemies()
+    local enemies = {}
+    local dungeonFolder = game.Workspace:FindFirstChild("dungeon")
+    if not dungeonFolder then return enemies end
+
+    for _, obj in pairs(dungeonFolder:GetDescendants()) do
+        if obj:FindFirstChild("HumanoidRootPart") and obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 then
+            table.insert(enemies, obj)
+        end
+    end
+
+    return enemies
+end
+
+-- Auto-farming logic
+local function autoFarm()
+    while getgenv().autofarm do
+        local enemies = findEnemies()
+
+        if #enemies > 0 then
+            for _, enemy in pairs(enemies) do
+                if not getgenv().autofarm then return end
+
+                -- Constantly check for dodging while attacking the enemy
+                coroutine.wrap(function()
+                    constantlyCheckForDodging(enemy)
+                end)()
+
+                -- Move behind the enemy and face them
+                moveAndFaceTarget(enemy)
+
+                -- Wait for the enemy to die
+                waitForEnemyToDie(enemy)
+            end
+        end
+
+        wait(0.1)  -- Default enemy checking every 0.1 seconds
+    end
+end
+
+-- Start autofarming if enabled
+if getgenv().autofarm then
+    coroutine.wrap(function()
+        pcall(function()
+            autoFarm()
+        end)
+    end)()
+end
