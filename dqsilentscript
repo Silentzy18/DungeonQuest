@@ -1,5 +1,4 @@
 
-
 -- Services
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
@@ -35,19 +34,19 @@ local function stopTween()
     end
 end
 
--- Function to calculate the average safe direction to dodge from all parts
+-- Function to calculate the safest dodge direction and distance
 local function calculateSafeDodgeDirection()
     local totalDodgeVector = Vector3.new(0, 0, 0)
     local dodgeCount = 0
     local closestPartDistance = math.huge  -- Track the closest part
 
-    -- Calculate dodge direction based on all parts
+    -- Calculate dodge direction based on all parts within range
     for _, part in pairs(dodgingParts) do
         if part:IsDescendantOf(Workspace) then
             local distanceToPart = (part.Position - humanoidRootPart.Position).Magnitude
 
             if distanceToPart <= getgenv().dodgeRange then
-                -- Dodge the closest part first
+                -- Track the closest part for prioritization
                 if distanceToPart < closestPartDistance then
                     closestPartDistance = distanceToPart
                 end
@@ -60,47 +59,64 @@ local function calculateSafeDodgeDirection()
         end
     end
 
-    -- If we need to dodge, return the averaged dodge direction and dynamic buffer size
+    -- If dodging is necessary, return the average dodge direction and dynamic buffer size
     if dodgeCount > 0 then
         local averageDodgeVector = totalDodgeVector.Unit
-        local dodgeBuffer = getgenv().dodgeBaseBuffer + (dodgeCount * getgenv().dodgeDynamicBufferMultiplier)  -- Dynamically adjust buffer
+        local dodgeBuffer = getgenv().dodgeBaseBuffer + (dodgeCount * getgenv().dodgeDynamicBufferMultiplier)  -- Adjust buffer dynamically
         return averageDodgeVector, dodgeBuffer
     end
 
     return nil, nil  -- No dodging needed
 end
 
--- Function to teleport the player to the calculated safe dodge spot
-local function dodgeToSafety(enemy)
+-- Function to prioritize and teleport the player to the safest dodge spot
+local function prioritizeDodging(enemy)
     local dodgeDirection, dodgeBuffer = calculateSafeDodgeDirection()
 
     if dodgeDirection then
-        -- Calculate dodge position based on the direction and dynamic buffer
+        -- Calculate the dodge position based on the direction and buffer
         local dodgePosition = humanoidRootPart.Position + dodgeDirection * (getgenv().dodgeRange + dodgeBuffer)
 
-        -- Stop any existing movement and teleport to the safe dodge spot
+        -- Stop any existing movement and instantly teleport to the safe dodge spot
         stopTween()
         humanoidRootPart.CFrame = CFrame.new(dodgePosition)
 
-        -- After dodging, move back to a safe spot behind the enemy
+        -- Recheck if there are still parts nearby and dodge again if necessary
+        for _, part in pairs(dodgingParts) do
+            local distanceToPart = (part.Position - humanoidRootPart.Position).Magnitude
+            if distanceToPart <= getgenv().dodgeRange then
+                prioritizeDodging(enemy)  -- Recursively dodge if necessary
+                break
+            end
+        end
+
+        -- After dodging, move back to a safe spot behind the enemy (only if safe)
         if enemy and enemy:FindFirstChild("HumanoidRootPart") then
             local enemyRootPart = enemy.HumanoidRootPart
             local safePosition = enemyRootPart.Position - (enemyRootPart.CFrame.LookVector * getgenv().distanceBehind)
             humanoidRootPart.CFrame = CFrame.new(safePosition, enemyRootPart.Position)
         end
 
-        -- Clear dodged parts after teleport
+        -- Clear dodged parts after successful dodge
         dodgingParts = {}
     end
 end
 
--- Monitor parts added to workspace
+-- Function to constantly check for new dangerous parts and dodge accordingly
+local function constantlyCheckForDodging(enemy)
+    while getgenv().autofarm do
+        prioritizeDodging(enemy)
+        wait(getgenv().dodgeCheckFrequency)  -- Check for dodging at a high frequency
+    end
+end
+
+-- Monitor parts added to workspace and initiate dodging
 Workspace.ChildAdded:Connect(function(newObject)
     if newObject:IsA("Part") then
         -- Add new part to the dodging list
         table.insert(dodgingParts, newObject)
-        -- Dodge to safety as soon as a part is detected
-        dodgeToSafety(nil)
+        -- Start dodging as soon as a part is detected
+        prioritizeDodging(nil)
     end
 end)
 
@@ -192,6 +208,11 @@ local function autoFarm()
         if #enemies > 0 then
             for _, enemy in pairs(enemies) do
                 if not getgenv().autofarm then return end
+
+                -- Constantly check for dodging while attacking the enemy
+                coroutine.wrap(function()
+                    constantlyCheckForDodging(enemy)
+                end)()
 
                 -- Move behind the enemy and face them
                 moveAndFaceTarget(enemy)
