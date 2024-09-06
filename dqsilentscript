@@ -50,7 +50,7 @@ local function tweenAndStayBehindTarget(target)
 
             -- Create the tween to smoothly move and stay behind the target
             if not currentTween or not currentTween.Playing then
-                local tweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, true)  -- Continuous tween
+                local tweenInfo = TweenInfo.new(0.25 / getgenv().tweenSpeed, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, true)  -- Continuous tween with balanced speed
                 currentTween = TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = fixedPosition})
                 currentTween:Play()
             end
