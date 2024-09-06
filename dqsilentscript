@@ -70,7 +70,7 @@ local function calculateSafeDodgeDirection()
     return nil, nil  -- No dodging needed
 end
 
--- Function to prioritize and teleport the player to the safest dodge spot
+-- Enhanced Function to Prioritize Dodging and Avoid Multiple Attacks
 local function prioritizeDodging(enemy)
     local dodgeDirection, dodgeBuffer = calculateSafeDodgeDirection()
 
@@ -78,7 +78,7 @@ local function prioritizeDodging(enemy)
         -- Calculate the dodge position based on the direction and buffer
         local dodgePosition = humanoidRootPart.Position + dodgeDirection * (getgenv().dodgeRange + dodgeBuffer)
 
-        -- Stop any existing movement and instantly teleport to the safe dodge spot
+        -- Stop any existing movement and teleport to the safe dodge spot
         stopTween()
         humanoidRootPart.CFrame = CFrame.new(dodgePosition)
 
@@ -103,11 +103,11 @@ local function prioritizeDodging(enemy)
     end
 end
 
--- Function to constantly check for new dangerous parts and dodge accordingly
+-- Constantly check for dodging and ensure the player is always safe
 local function constantlyCheckForDodging(enemy)
     while getgenv().autofarm do
         prioritizeDodging(enemy)
-        wait(getgenv().dodgeCheckFrequency)  -- Check for dodging at a higher frequency
+        wait(getgenv().dodgeCheckFrequency)  -- Frequent checks for dodging
     end
 end
 
@@ -145,7 +145,7 @@ coroutine.wrap(function()
     end
 end)()
 
--- Function to move behind the target and face them quickly
+-- Move behind the target and face them
 local function moveAndFaceTarget(target)
     if not humanoidRootPart or not humanoid then return end
 
@@ -163,15 +163,13 @@ local function moveAndFaceTarget(target)
             -- Create a fast-facing CFrame to look at the target
             local targetCFrame = CFrame.new(targetPosition, targetRootPart.Position)
 
-            -- Only tween if there's significant movement needed
-            if currentDistance > 2 then
-                local tweenDuration = 1 / math.max(0.1, getgenv().tweenSpeed)
-                local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
-                currentTween = TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = targetCFrame})
-                currentTween:Play()
+            -- Slower tween movement towards the target
+            local tweenDuration = 3 / math.max(0.1, getgenv().tweenSpeed)  -- Slower duration for more cautious movement
+            local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
+            currentTween = TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = targetCFrame})
+            currentTween:Play()
 
-                wait(tweenDuration)
-            end
+            wait(tweenDuration)
         else
             wait(0.1)
         end
