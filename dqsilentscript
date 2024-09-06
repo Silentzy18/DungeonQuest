@@ -1,0 +1,141 @@
+-- Services
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- Variables to store character components
+local humanoidRootPart, humanoid
+
+-- Function to initialize character components after respawn
+local function initializeCharacter(character)
+    humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+    humanoid = character:WaitForChild("Humanoid")
+end
+
+-- Attach to the CharacterAdded event to ensure the script continues after respawn
+LocalPlayer.CharacterAdded:Connect(function(character)
+    initializeCharacter(character)
+end)
+
+-- Initialize the character if already loaded
+if LocalPlayer.Character then
+    initializeCharacter(LocalPlayer.Character)
+end
+
+-- Function to attack the enemy rapidly
+local function attackEnemy()
+    local args = {
+        [1] = {
+            [1] = {
+                ["animationLength"] = 0,
+                ["sentAt"] = tick()  -- Use tick() to get the current time
+            },
+            [2] = "C"
+        }
+    }
+    game:GetService("ReplicatedStorage").dataRemoteEvent:FireServer(unpack(args))
+end
+
+-- Continuous fast attack loop
+coroutine.wrap(function()
+    while getgenv().autofarm do
+        pcall(function()
+            attackEnemy()
+        end)
+        wait(0.01)  -- Minimal delay for fast execution
+    end
+end)()
+
+-- Function to keep the player behind the target and always facing the target using continuous tweens
+local function moveAndStayBehindTarget(target)
+    if not humanoidRootPart or not humanoid then return end
+
+    -- Check if the target is valid
+    local targetRootPart = target:FindFirstChild("HumanoidRootPart")
+    if not targetRootPart then return end
+
+    -- Run a continuous loop to always stay behind the target
+    while getgenv().autofarm and target:FindFirstChild("Humanoid") and target.Humanoid.Health > 0 do
+        -- Recalculate the position behind the target based on its LookVector (facing direction)
+        local behindOffset = targetRootPart.CFrame.LookVector * -getgenv().distanceBehind  -- Use adjustable distance for how far behind
+        local targetPosition = targetRootPart.Position + behindOffset
+
+        -- Adjust height with the configured value
+        targetPosition = Vector3.new(targetPosition.X, targetRootPart.Position.Y + getgenv().heightAbove, targetPosition.Z)
+
+        -- Calculate the CFrame to move behind and face the target
+        local targetCFrame = CFrame.new(humanoidRootPart.Position, targetRootPart.Position)  -- Align the character to face the target
+
+        -- Create a final CFrame that combines both position behind and facing the target
+        local finalCFrame = CFrame.new(targetPosition, targetRootPart.Position)
+
+        -- Use TweenService to move the player's HumanoidRootPart smoothly
+        local tweenInfo = TweenInfo.new(getgenv().tweenSpeed, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
+        local tween = TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = finalCFrame})
+        tween:Play()
+
+        -- Ensure the tween continues smoothly by waiting for a short interval and recalculating
+        wait(0.05)  -- Short interval to update the position regularly
+    end
+end
+
+-- Function to wait until the target's Humanoid health is 0
+local function waitForEnemyToDie(enemy)
+    local enemyHumanoid = enemy:FindFirstChild("Humanoid")
+    if enemyHumanoid then
+        -- Wait until the enemy's health reaches 0
+        while enemyHumanoid.Health > 0 and getgenv().autofarm do
+            wait(0.1)  -- Small delay to prevent overloading
+        end
+    end
+end
+
+-- Function to find all enemies in the dungeon folder
+local function findEnemies()
+    local enemies = {}
+
+    -- Get the dungeon folder
+    local dungeonFolder = game.Workspace:FindFirstChild("dungeon")
+    if not dungeonFolder then return enemies end  -- Return empty if dungeon folder not found
+
+    -- Search all descendants in the dungeon folder for valid enemies
+    for _, obj in pairs(dungeonFolder:GetDescendants()) do
+        if obj:FindFirstChild("HumanoidRootPart") and obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 then
+            table.insert(enemies, obj)
+        end
+    end
+
+    return enemies
+end
+
+-- Function to autofarm enemies
+local function autoFarm()
+    while getgenv().autofarm do
+        local enemies = findEnemies()
+
+        -- If there are enemies, start farming them
+        if #enemies > 0 then
+            for _, enemy in pairs(enemies) do
+                if not getgenv().autofarm then return end  -- Stop if autofarm is disabled during the loop
+
+                -- Continuously move behind the target enemy using TweenService and CFrame
+                moveAndStayBehindTarget(enemy)
+
+                -- Wait for the enemy to die before moving to the next one
+                waitForEnemyToDie(enemy)
+            end
+        else
+            -- Wait and scan again if no enemies are found
+            wait(2)
+        end
+    end
+end
+
+-- Start the autofarming script if enabled
+if getgenv().autofarm then
+    coroutine.wrap(function()
+        pcall(function()
+            autoFarm()
+        end)
+    end)()
+end
