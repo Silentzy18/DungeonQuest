@@ -1,4 +1,3 @@
-
 -- Services
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
@@ -7,7 +6,7 @@ local LocalPlayer = Players.LocalPlayer
 
 -- Variables to store character components
 local humanoidRootPart, humanoid
-local currentTween  -- Store the current tween for moving towards the target
+local currentTween  -- Store the current tween for movement
 local dodgingParts = {}  -- Store parts that require dodging
 
 -- Function to initialize character components after respawn
@@ -26,7 +25,7 @@ if LocalPlayer.Character then
     initializeCharacter(LocalPlayer.Character)
 end
 
--- Stop current tween movement (used for stopping movement to the target)
+-- Stop the current tween movement
 local function stopTween()
     if currentTween then
         currentTween:Cancel()
@@ -34,7 +33,7 @@ local function stopTween()
     end
 end
 
--- Function to calculate the safest dodge direction and optimal dodge distance
+-- Function to calculate the safest dodge direction and distance
 local function calculateSafeDodgeDirection()
     local totalDodgeVector = Vector3.new(0, 0, 0)
     local closestPartDistance = math.huge  -- Track the closest part
@@ -59,7 +58,7 @@ local function calculateSafeDodgeDirection()
         end
     end
 
-    -- If dodging is necessary, return the average dodge direction and dynamic buffer
+    -- If dodging is necessary, return the average dodge direction and distance
     if dodgeCount > 0 then
         local averageDodgeVector = totalDodgeVector.Unit
         -- Calculate the dodge distance to ensure it's small and safe
@@ -91,7 +90,7 @@ local function prioritizeDodging()
             end
         end
 
-        -- Efficiently clear dodged parts after successful dodge
+        -- Clear dodged parts after successful dodge
         dodgingParts = {}
     end
 end
@@ -201,4 +200,34 @@ end
 -- Auto-farming logic (manages enemy targeting and dodging)
 local function autoFarm()
     while getgenv().autofarm do
-       
+        local enemies = findEnemies()
+
+        if #enemies > 0 then
+            for _, enemy in pairs(enemies) do
+                if not getgenv().autofarm then return end
+
+                -- Start dodging in parallel while attacking and moving to target
+                coroutine.wrap(function()
+                    constantlyCheckForDodging()
+                end)()
+
+                -- Move above the enemy and face them
+                moveAndFaceTarget(enemy)
+
+                -- Wait for the enemy to die
+                waitForEnemyToDie(enemy)
+            end
+        end
+
+        wait(getgenv().enemyCheckFrequency)  -- Throttled enemy checking to reduce load
+    end
+end
+
+-- Start autofarming if enabled
+if getgenv().autofarm then
+    coroutine.wrap(function()
+        pcall(function()
+            autoFarm()
+        end)
+    end)()
+end
