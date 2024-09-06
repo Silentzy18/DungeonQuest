@@ -7,6 +7,7 @@ local Workspace = game:GetService("Workspace")
 -- Variables to store character components
 local humanoidRootPart, humanoid
 local canDodge = true  -- Controls the dodge cooldown
+local currentTween  -- Store the current tween so we can stop it during dodging
 
 -- Function to initialize character components after respawn
 local function initializeCharacter(character)
@@ -24,6 +25,14 @@ if LocalPlayer.Character then
     initializeCharacter(LocalPlayer.Character)
 end
 
+-- Function to cancel current tweening movement
+local function stopTween()
+    if currentTween then
+        currentTween:Cancel()
+        currentTween = nil  -- Clear the tween reference after stopping
+    end
+end
+
 -- Function to teleport the entire character when dodging
 local function dodgePart(part)
     if not canDodge or not humanoidRootPart then return end
@@ -33,9 +42,12 @@ local function dodgePart(part)
 
     -- If the part is within the dodge range, teleport the player away
     if distanceToPart <= getgenv().dodgeRange then
+        -- Stop tweening to ensure dodge works
+        stopTween()
+
         -- Calculate a position outside the part's range (teleport in the opposite direction)
         local direction = (humanoidRootPart.Position - part.Position).Unit  -- Direction vector away from the part
-        local teleportPosition = humanoidRootPart.Position + direction * getgenv().dodgeRange
+        local teleportPosition = humanoidRootPart.Position + direction * (getgenv().dodgeRange + 5)  -- Move slightly farther to ensure safety
 
         -- Teleport the whole character using CFrame
         humanoidRootPart.CFrame = CFrame.new(teleportPosition)
@@ -108,10 +120,10 @@ local function moveAndFaceTarget(target)
             -- Smooth movement with TweenService
             local tweenDuration = 1 / math.max(0.1, getgenv().tweenSpeed)  -- Prevent divide by zero
             local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
-            local tween = TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = targetCFrame})
-            tween:Play()
+            currentTween = TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = targetCFrame})
+            currentTween:Play()
 
-            -- Wait for tween to complete before updating again (tween.Completed could be used if you want to block execution)
+            -- Wait for tween to complete before updating again
             wait(tweenDuration)
         else
             -- If close enough, wait a little before checking again
