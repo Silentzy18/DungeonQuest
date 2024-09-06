@@ -34,29 +34,24 @@ local function stopTween()
     end
 end
 
--- Function to smoothly dodge away from a part
-local function dodgeSmoothly(part)
+-- Function to instantly dodge away from a part using teleportation
+local function teleportToSafety(part)
     if not humanoidRootPart then return end
 
     -- Calculate the distance to the part
     local distanceToPart = (part.Position - humanoidRootPart.Position).Magnitude
 
-    -- If the part is within the dodge range, smoothly move the player away
+    -- If the part is within the dodge range, teleport the player away
     if distanceToPart <= getgenv().dodgeRange then
-        -- Stop tweening to ensure dodge works
+        -- Stop any tweening to ensure dodge works
         stopTween()
 
         -- Calculate a position just outside the dodge range (teleport in the opposite direction)
         local direction = (humanoidRootPart.Position - part.Position).Unit  -- Direction vector away from the part
-        local dodgePosition = humanoidRootPart.Position + direction * (getgenv().dodgeRange + getgenv().dodgeBuffer)  -- Move slightly farther for safety
+        local dodgePosition = humanoidRootPart.Position + direction * (getgenv().dodgeRange + getgenv().dodgeBuffer)
 
-        -- Create a tween to smoothly move the player to the dodge position
-        local dodgeTweenInfo = TweenInfo.new(getgenv().dodgeTime, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
-        currentTween = TweenService:Create(humanoidRootPart, dodgeTweenInfo, {CFrame = CFrame.new(dodgePosition)})
-        currentTween:Play()
-
-        -- Wait for the dodge tween to complete
-        currentTween.Completed:Wait()
+        -- Instantly teleport the player to safety
+        humanoidRootPart.CFrame = CFrame.new(dodgePosition)
 
         -- Remove part from dodge list once dodge is complete
         if part.Parent then
@@ -74,8 +69,8 @@ Workspace.ChildAdded:Connect(function(newObject)
     if newObject:IsA("Part") then
         -- Add the new part to the dodgingParts table
         table.insert(dodgingParts, newObject)
-        -- Start dodging the detected part smoothly
-        dodgeSmoothly(newObject)
+        -- Instantly dodge the detected part using teleportation
+        teleportToSafety(newObject)
     end
 end)
 
@@ -151,7 +146,7 @@ local function waitForEnemyToDie(enemy)
     end
 end
 
--- Function to find all enemies in the dungeon folder (with reduced frequency)
+-- Function to find all enemies in the dungeon folder (fixed at 0.1 seconds interval)
 local function findEnemies()
     local enemies = {}
 
@@ -169,33 +164,26 @@ local function findEnemies()
     return enemies
 end
 
--- Function to autofarm enemies
+-- Function to autofarm enemies with fixed checking at 0.1-second intervals
 local function autoFarm()
-    local lastEnemyCheck = 0  -- Keep track of the last time we checked for enemies
-    
     while getgenv().autofarm do
-        -- Only check for new enemies every getgenv().enemyCheckInterval seconds
-        if tick() - lastEnemyCheck >= getgenv().enemyCheckInterval then
-            lastEnemyCheck = tick()  -- Update the last check time
+        local enemies = findEnemies()
 
-            local enemies = findEnemies()
+        -- If there are enemies, start farming them
+        if #enemies > 0 then
+            for _, enemy in pairs(enemies) do
+                if not getgenv().autofarm then return end  -- Stop if autofarm is disabled during the loop
 
-            -- If there are enemies, start farming them
-            if #enemies > 0 then
-                for _, enemy in pairs(enemies) do
-                    if not getgenv().autofarm then return end  -- Stop if autofarm is disabled during the loop
+                -- Continuously move behind the target and face the enemy
+                moveAndFaceTarget(enemy)
 
-                    -- Continuously move behind the target and face the enemy
-                    moveAndFaceTarget(enemy)
-
-                    -- Wait for the enemy to die before moving to the next one
-                    waitForEnemyToDie(enemy)
-                end
+                -- Wait for the enemy to die before moving to the next one
+                waitForEnemyToDie(enemy)
             end
-        else
-            -- Wait a bit before the next loop iteration to save resources
-            wait(0.5)
         end
+
+        -- Wait a bit before the next loop iteration to save resources (fixed to 0.1 seconds)
+        wait(0.1)
     end
 end
 
