@@ -36,13 +36,13 @@ local function attackEnemy()
     game:GetService("ReplicatedStorage").dataRemoteEvent:FireServer(unpack(args))
 end
 
--- Continuous fast attack loop (throttled)
+-- Continuous fast attack loop (optimized)
 coroutine.wrap(function()
     while getgenv().autofarm do
         pcall(function()
             attackEnemy()
         end)
-        wait(0.05)  -- Reduced attack frequency to avoid overloading the server
+        wait(0.05)  -- Adjusted attack frequency to balance performance
     end
 end)()
 
@@ -64,9 +64,6 @@ local function moveAndStayBehindTarget(target)
             -- Recalculate the position behind the target based on its LookVector (facing direction)
             local behindOffset = targetRootPart.CFrame.LookVector * -getgenv().distanceBehind
             local targetPosition = targetRootPart.Position + behindOffset
-
-            -- Adjust height with the configured value
-            targetPosition = Vector3.new(targetPosition.X, targetRootPart.Position.Y + getgenv().heightAbove, targetPosition.Z)
 
             -- Create a final CFrame that combines both position behind and facing the target
             local finalCFrame = CFrame.new(targetPosition, targetRootPart.Position)
