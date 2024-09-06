@@ -33,7 +33,7 @@ local function stopTween()
     end
 end
 
--- Calculate the dodge direction and return the optimal dodge distance
+-- Function to calculate the dodge direction and optimal dodge distance
 local function calculateSafeDodgeDirection()
     local totalDodgeVector = Vector3.new(0, 0, 0)
     local closestPartDistance = math.huge  -- Track the closest part
@@ -61,15 +61,16 @@ local function calculateSafeDodgeDirection()
     -- If dodging is necessary, return the average dodge direction and dynamic buffer
     if dodgeCount > 0 then
         local averageDodgeVector = totalDodgeVector.Unit
+        -- Calculate the dodge distance to ensure it's small and safe
         local dodgeBuffer = getgenv().dodgeBaseBuffer + (dodgeCount * getgenv().dodgeDynamicBufferMultiplier)
-        local dodgeDistance = math.min(closestPartDistance + dodgeBuffer, getgenv().dodgeRange)  -- Ensure we don't dodge too far
+        local dodgeDistance = math.min(closestPartDistance + dodgeBuffer, getgenv().maxDodgeDistance)  -- Limit the max dodge distance
         return averageDodgeVector, dodgeDistance
     end
 
     return nil, nil  -- No dodging needed
 end
 
--- Prioritize dodging and ensure smooth teleportation to a safe spot
+-- Function to handle teleporting the character to the safest dodge spot
 local function prioritizeDodging(enemy)
     local dodgeDirection, dodgeDistance = calculateSafeDodgeDirection()
 
