@@ -34,7 +34,7 @@ local function stopTween()
     end
 end
 
--- Function to calculate the safest dodge direction and distance
+-- Function to calculate the safest dodge direction and distance in 3D
 local function calculateSafeDodgeDirection()
     local totalDodgeVector = Vector3.new(0, 0, 0)
     local dodgeCount = 0
@@ -43,6 +43,7 @@ local function calculateSafeDodgeDirection()
     -- Calculate dodge direction based on all parts within range
     for _, part in pairs(dodgingParts) do
         if part:IsDescendantOf(Workspace) then
+            -- Calculate the 3D distance to the part (including vertical distance)
             local distanceToPart = (part.Position - humanoidRootPart.Position).Magnitude
 
             if distanceToPart <= getgenv().dodgeRange then
@@ -51,7 +52,7 @@ local function calculateSafeDodgeDirection()
                     closestPartDistance = distanceToPart
                 end
 
-                -- Calculate direction away from the part
+                -- Calculate 3D direction away from the part
                 local dodgeDirection = (humanoidRootPart.Position - part.Position).Unit
                 totalDodgeVector = totalDodgeVector + dodgeDirection
                 dodgeCount = dodgeCount + 1
@@ -97,7 +98,7 @@ local function prioritizeDodging(enemy)
             humanoidRootPart.CFrame = CFrame.new(safePosition, enemyRootPart.Position)
         end
 
-        -- Clear dodged parts after successful dodge
+        -- Efficiently clear dodged parts after successful dodge
         dodgingParts = {}
     end
 end
@@ -106,7 +107,7 @@ end
 local function constantlyCheckForDodging(enemy)
     while getgenv().autofarm do
         prioritizeDodging(enemy)
-        wait(getgenv().dodgeCheckFrequency)  -- Check for dodging at a high frequency
+        wait(getgenv().dodgeCheckFrequency)  -- Check for dodging at a higher frequency
     end
 end
 
@@ -162,13 +163,15 @@ local function moveAndFaceTarget(target)
             -- Create a fast-facing CFrame to look at the target
             local targetCFrame = CFrame.new(targetPosition, targetRootPart.Position)
 
-            -- Slower tween movement towards the target
-            local tweenDuration = 1 / math.max(0.1, getgenv().tweenSpeed)
-            local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
-            currentTween = TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = targetCFrame})
-            currentTween:Play()
+            -- Only tween if there's significant movement needed
+            if currentDistance > 2 then
+                local tweenDuration = 1 / math.max(0.1, getgenv().tweenSpeed)
+                local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
+                currentTween = TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = targetCFrame})
+                currentTween:Play()
 
-            wait(tweenDuration)
+                wait(tweenDuration)
+            end
         else
             wait(0.1)
         end
@@ -222,7 +225,7 @@ local function autoFarm()
             end
         end
 
-        wait(0.1)  -- Default enemy checking every 0.1 seconds
+        wait(getgenv().enemyCheckFrequency)  -- Throttled enemy checking to reduce load
     end
 end
 
