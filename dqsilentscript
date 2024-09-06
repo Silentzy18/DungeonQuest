@@ -1,4 +1,3 @@
-
 -- Services
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
@@ -34,20 +33,19 @@ local function stopTween()
     end
 end
 
--- Function to calculate the safest dodge direction and distance in 3D
+-- Calculate the dodge direction and return the optimal dodge distance
 local function calculateSafeDodgeDirection()
     local totalDodgeVector = Vector3.new(0, 0, 0)
-    local dodgeCount = 0
     local closestPartDistance = math.huge  -- Track the closest part
+    local dodgeCount = 0
 
     -- Calculate dodge direction based on all parts within range
     for _, part in pairs(dodgingParts) do
         if part:IsDescendantOf(Workspace) then
-            -- Calculate the 3D distance to the part (including vertical distance)
             local distanceToPart = (part.Position - humanoidRootPart.Position).Magnitude
 
+            -- If within the dodge range
             if distanceToPart <= getgenv().dodgeRange then
-                -- Track the closest part for prioritization
                 if distanceToPart < closestPartDistance then
                     closestPartDistance = distanceToPart
                 end
@@ -60,23 +58,24 @@ local function calculateSafeDodgeDirection()
         end
     end
 
-    -- If dodging is necessary, return the average dodge direction and dynamic buffer size
+    -- If dodging is necessary, return the average dodge direction and dynamic buffer
     if dodgeCount > 0 then
         local averageDodgeVector = totalDodgeVector.Unit
-        local dodgeBuffer = getgenv().dodgeBaseBuffer + (dodgeCount * getgenv().dodgeDynamicBufferMultiplier)  -- Adjust buffer dynamically
-        return averageDodgeVector, dodgeBuffer
+        local dodgeBuffer = getgenv().dodgeBaseBuffer + (dodgeCount * getgenv().dodgeDynamicBufferMultiplier)
+        local dodgeDistance = math.min(closestPartDistance + dodgeBuffer, getgenv().dodgeRange)  -- Ensure we don't dodge too far
+        return averageDodgeVector, dodgeDistance
     end
 
     return nil, nil  -- No dodging needed
 end
 
--- Enhanced Function to Prioritize Dodging and Avoid Multiple Attacks
+-- Prioritize dodging and ensure smooth teleportation to a safe spot
 local function prioritizeDodging(enemy)
-    local dodgeDirection, dodgeBuffer = calculateSafeDodgeDirection()
+    local dodgeDirection, dodgeDistance = calculateSafeDodgeDirection()
 
     if dodgeDirection then
-        -- Calculate the dodge position based on the direction and buffer
-        local dodgePosition = humanoidRootPart.Position + dodgeDirection * (getgenv().dodgeRange + dodgeBuffer)
+        -- Calculate the dodge position based on the direction and distance
+        local dodgePosition = humanoidRootPart.Position + dodgeDirection * dodgeDistance
 
         -- Stop any existing movement and teleport to the safe dodge spot
         stopTween()
@@ -164,7 +163,7 @@ local function moveAndFaceTarget(target)
             local targetCFrame = CFrame.new(targetPosition, targetRootPart.Position)
 
             -- Slower tween movement towards the target
-            local tweenDuration = 3 / math.max(0.1, getgenv().tweenSpeed)  -- Slower duration for more cautious movement
+            local tweenDuration = 2 / math.max(0.1, getgenv().tweenSpeed)  -- Slower duration for cautious movement
             local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
             currentTween = TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = targetCFrame})
             currentTween:Play()
