@@ -1,8 +1,3 @@
-getgenv().autofarm = true  -- Toggle to enable/disable autofarming
-getgenv().tweenSpeed = 0.5  -- Adjust this to change how fast the player moves (lower values are faster)
-getgenv().distanceBehind = 10  -- Adjust how far behind the target you want to be
-getgenv().heightAbove = 5  -- Adjust how high above the target you want to be
-
 -- Services
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
@@ -41,13 +36,13 @@ local function attackEnemy()
     game:GetService("ReplicatedStorage").dataRemoteEvent:FireServer(unpack(args))
 end
 
--- Continuous fast attack loop
+-- Continuous fast attack loop (throttled)
 coroutine.wrap(function()
     while getgenv().autofarm do
         pcall(function()
             attackEnemy()
         end)
-        wait(0.01)  -- Minimal delay for fast execution
+        wait(0.05)  -- Reduced attack frequency to avoid overloading the server
     end
 end)()
 
@@ -61,26 +56,31 @@ local function moveAndStayBehindTarget(target)
 
     -- Run a continuous loop to always stay behind the target
     while getgenv().autofarm and target:FindFirstChild("Humanoid") and target.Humanoid.Health > 0 do
-        -- Recalculate the position behind the target based on its LookVector (facing direction)
-        local behindOffset = targetRootPart.CFrame.LookVector * -getgenv().distanceBehind  -- Use adjustable distance for how far behind
-        local targetPosition = targetRootPart.Position + behindOffset
+        -- Calculate the current distance to the target
+        local currentDistance = (targetRootPart.Position - humanoidRootPart.Position).Magnitude
+        
+        -- Recalculate the position behind the target only if the player is far enough away
+        if currentDistance > 3 then  -- Only move if farther than 3 studs (this avoids small unnecessary movements)
+            -- Recalculate the position behind the target based on its LookVector (facing direction)
+            local behindOffset = targetRootPart.CFrame.LookVector * -getgenv().distanceBehind
+            local targetPosition = targetRootPart.Position + behindOffset
 
-        -- Adjust height with the configured value
-        targetPosition = Vector3.new(targetPosition.X, targetRootPart.Position.Y + getgenv().heightAbove, targetPosition.Z)
+            -- Adjust height with the configured value
+            targetPosition = Vector3.new(targetPosition.X, targetRootPart.Position.Y + getgenv().heightAbove, targetPosition.Z)
 
-        -- Calculate the CFrame to move behind and face the target
-        local targetCFrame = CFrame.new(humanoidRootPart.Position, targetRootPart.Position)  -- Align the character to face the target
+            -- Create a final CFrame that combines both position behind and facing the target
+            local finalCFrame = CFrame.new(targetPosition, targetRootPart.Position)
 
-        -- Create a final CFrame that combines both position behind and facing the target
-        local finalCFrame = CFrame.new(targetPosition, targetRootPart.Position)
+            -- Use TweenService to move the player's HumanoidRootPart smoothly
+            -- The tween speed is now inverted: higher speed = faster movement
+            local tweenDuration = 1 / math.max(0.1, getgenv().tweenSpeed)  -- Prevent divide by zero
+            local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
+            local tween = TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = finalCFrame})
+            tween:Play()
+        end
 
-        -- Use TweenService to move the player's HumanoidRootPart smoothly
-        local tweenInfo = TweenInfo.new(getgenv().tweenSpeed, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
-        local tween = TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = finalCFrame})
-        tween:Play()
-
-        -- Ensure the tween continues smoothly by waiting for a short interval and recalculating
-        wait(0.05)  -- Short interval to update the position regularly
+        -- Throttle the position update loop based on distance from target (lower distance = slower update rate)
+        wait(currentDistance > 10 and 0.05 or 0.1)  -- Adjust wait time dynamically based on distance
     end
 end
 
@@ -95,7 +95,7 @@ local function waitForEnemyToDie(enemy)
     end
 end
 
--- Function to find all enemies in the dungeon folder
+-- Function to find all enemies in the dungeon folder (with reduced frequency)
 local function findEnemies()
     local enemies = {}
 
@@ -115,23 +115,30 @@ end
 
 -- Function to autofarm enemies
 local function autoFarm()
+    local lastEnemyCheck = 0  -- Keep track of the last time we checked for enemies
+    
     while getgenv().autofarm do
-        local enemies = findEnemies()
+        -- Only check for new enemies every getgenv().enemyCheckInterval seconds
+        if tick() - lastEnemyCheck >= getgenv().enemyCheckInterval then
+            lastEnemyCheck = tick()  -- Update the last check time
 
-        -- If there are enemies, start farming them
-        if #enemies > 0 then
-            for _, enemy in pairs(enemies) do
-                if not getgenv().autofarm then return end  -- Stop if autofarm is disabled during the loop
+            local enemies = findEnemies()
 
-                -- Continuously move behind the target enemy using TweenService and CFrame
-                moveAndStayBehindTarget(enemy)
+            -- If there are enemies, start farming them
+            if #enemies > 0 then
+                for _, enemy in pairs(enemies) do
+                    if not getgenv().autofarm then return end  -- Stop if autofarm is disabled during the loop
 
-                -- Wait for the enemy to die before moving to the next one
-                waitForEnemyToDie(enemy)
+                    -- Continuously move behind the target enemy using TweenService and CFrame
+                    moveAndStayBehindTarget(enemy)
+
+                    -- Wait for the enemy to die before moving to the next one
+                    waitForEnemyToDie(enemy)
+                end
             end
         else
-            -- Wait and scan again if no enemies are found
-            wait(2)
+            -- Wait a bit before the next loop iteration to save resources
+            wait(0.5)
         end
     end
 end
