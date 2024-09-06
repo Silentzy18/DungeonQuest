@@ -1,3 +1,4 @@
+
 -- Services
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
@@ -33,7 +34,7 @@ local function stopTween()
     end
 end
 
--- Function to calculate the dodge direction and optimal dodge distance
+-- Function to calculate the safest dodge direction and optimal dodge distance
 local function calculateSafeDodgeDirection()
     local totalDodgeVector = Vector3.new(0, 0, 0)
     local closestPartDistance = math.huge  -- Track the closest part
@@ -137,28 +138,28 @@ coroutine.wrap(function()
     end
 end)()
 
--- Move behind the target and face them (using tweening for movement)
+-- Move above the target and face them (using tweening for movement)
 local function moveAndFaceTarget(target)
     if not humanoidRootPart or not humanoid then return end
 
     local targetRootPart = target:FindFirstChild("HumanoidRootPart")
     if not targetRootPart then return end
 
-    -- Continuous loop to keep moving behind the target
+    -- Continuous loop to keep moving above the target
     while getgenv().autofarm and target:FindFirstChild("Humanoid") and target.Humanoid.Health > 0 do
         local currentDistance = (targetRootPart.Position - humanoidRootPart.Position).Magnitude
 
         -- Check if we're far enough away to move
         if currentDistance > 3 then
-            -- Calculate the position behind the target
-            local behindOffset = targetRootPart.CFrame.LookVector * -getgenv().distanceBehind
-            local targetPosition = targetRootPart.Position + behindOffset
+            -- Calculate the position above the target
+            local aboveOffset = Vector3.new(0, getgenv().distanceAbove, 0)  -- Offset directly above the target
+            local targetPosition = targetRootPart.Position + aboveOffset
 
-            -- Create a CFrame to move to behind the enemy and look at the target
+            -- Create a CFrame to move above the enemy and look at the target
             local targetCFrame = CFrame.new(targetPosition, targetRootPart.Position)
 
             -- Tween movement towards the target
-            local tweenDuration = 2 / math.max(0.1, getgenv().tweenSpeed)  -- Adjust tween duration based on tweenSpeed
+            local tweenDuration = 1.5 / math.max(0.1, getgenv().tweenSpeed)  -- Faster tween duration
             local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
             stopTween()  -- Stop any ongoing tweens before starting a new one
             currentTween = TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = targetCFrame})
@@ -200,34 +201,4 @@ end
 -- Auto-farming logic (manages enemy targeting and dodging)
 local function autoFarm()
     while getgenv().autofarm do
-        local enemies = findEnemies()
-
-        if #enemies > 0 then
-            for _, enemy in pairs(enemies) do
-                if not getgenv().autofarm then return end
-
-                -- Start dodging in parallel while attacking and moving to target
-                coroutine.wrap(function()
-                    constantlyCheckForDodging()
-                end)()
-
-                -- Move behind the enemy and face them
-                moveAndFaceTarget(enemy)
-
-                -- Wait for the enemy to die
-                waitForEnemyToDie(enemy)
-            end
-        end
-
-        wait(getgenv().enemyCheckFrequency)  -- Throttled enemy checking to reduce load
-    end
-end
-
--- Start autofarming if enabled
-if getgenv().autofarm then
-    coroutine.wrap(function()
-        pcall(function()
-            autoFarm()
-        end)
-    end)()
-end
+       
