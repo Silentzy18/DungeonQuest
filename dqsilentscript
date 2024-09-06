@@ -48,14 +48,21 @@ local function tweenAndStayBehindTarget(target)
             -- Get the fixed position behind and above the target
             local fixedPosition = getFixedPositionBehindTarget(targetRootPart)
 
-            -- Create the tween to smoothly move and stay behind the target
-            if not currentTween or not currentTween.Playing then
-                local tweenInfo = TweenInfo.new(0.25 / getgenv().tweenSpeed, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, true)  -- Continuous tween with balanced speed
-                currentTween = TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = fixedPosition})
-                currentTween:Play()
+            -- Check the current distance from the target, only tween if necessary
+            local currentDistance = (humanoidRootPart.Position - fixedPosition.Position).Magnitude
+            if currentDistance > getgenv().recheckThreshold then
+                -- Create the tween to smoothly move and stay behind the target
+                if not currentTween or not currentTween.Playing then
+                    local tweenInfo = TweenInfo.new(currentDistance / getgenv().tweenSpeed, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
+                    currentTween = TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = fixedPosition})
+                    currentTween:Play()
+
+                    -- Wait for the tween to complete before rechecking
+                    currentTween.Completed:Wait()
+                end
             end
 
-            -- Wait a bit before adjusting the position again
+            -- Wait before rechecking the position again to avoid constant adjustments
             wait(0.1)
         end
 
