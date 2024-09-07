@@ -3,10 +3,58 @@ local TS = game:GetService("TweenService")
 local RS = game:GetService("ReplicatedStorage")
 local player = game.Players.LocalPlayer
 
--- Wait for the player's character to load
-local function waitForCharacter()
-    while not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") do
-        player.CharacterAdded:Wait()  -- Wait until character is loaded
+-- Function to handle movement towards enemies and tween above them
+local function moveToEnemy(enemyRoot)
+    local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    coroutine.wrap(function()
+        while getgenv().autofarm and enemyRoot and enemyRoot.Parent:FindFirstChild("Humanoid").Health > 0 do
+            dodgeDanger(root)  -- Dodge dangerous parts
+            
+            -- Calculate the position above the enemy using the adjustable height
+            local targetPos = enemyRoot.Position + Vector3.new(0, getgenv().aboveEnemyHeight, 0)  -- Adjust height using aboveEnemyHeight
+            local tweenInfo = TweenInfo.new(getgenv().tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+            
+            -- Tween to the position above the enemy
+            TS:Create(root, tweenInfo, {CFrame = CFrame.new(targetPos)}):Play()
+            wait(0.1)
+        end
+    end)()
+end
+
+-- Attack the enemy continuously
+local function attackEnemy()
+    if RS:FindFirstChild("dataRemoteEvent") then
+        RS.dataRemoteEvent:FireServer({{["animationLength"] = 0, ["sentAt"] = tick()}, "C"})
+    end
+end
+
+-- Fast dodging of nearby parts
+local function dodgeDanger(root)
+    for _, part in pairs(workspace:GetChildren()) do
+        if part:IsA("BasePart") and (root.Position - part.Position).Magnitude < getgenv().dodgeRange then
+            local safePos = part.Position + (root.Position - part.Position).Unit * (part.Size.Magnitude / 2 + getgenv().extraSafeDistance)
+            root.CFrame = CFrame.new(safePos)  -- Teleport to a safe position
+        end
+    end
+end
+
+-- Scan dungeon and attack all enemies
+local function scanAndAttackEnemies()
+    local dungeon = workspace:FindFirstChild("dungeon")
+    if dungeon then
+        for _, obj in pairs(dungeon:GetDescendants()) do
+            local humanoid = obj:FindFirstChild("Humanoid")
+            local root = obj:FindFirstChild("HumanoidRootPart")
+            if humanoid and root and humanoid.Health > 0 then
+                moveToEnemy(root)  -- Move above the enemy
+                while humanoid.Health > 0 and getgenv().autofarm do
+                    attackEnemy()
+                    wait(getgenv().attackSpeed)  -- Control attack speed
+                end
+            end
+        end
     end
 end
 
@@ -23,57 +71,6 @@ local function retryAndStartLoop()
     end
 end
 
--- Fast dodging of nearby parts
-local function dodgeDanger(root)
-    for _, part in pairs(workspace:GetChildren()) do
-        if part:IsA("BasePart") and (root.Position - part.Position).Magnitude < getgenv().dodgeRange then
-            local safePos = part.Position + (root.Position - part.Position).Unit * (part.Size.Magnitude / 2 + getgenv().extraSafeDistance)
-            root.CFrame = CFrame.new(safePos)  -- Teleport to a safe position
-        end
-    end
-end
-
--- Function to handle movement towards enemies
-local function moveToEnemy(enemyRoot)
-    local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-
-    coroutine.wrap(function()
-        while getgenv().autofarm and enemyRoot and enemyRoot.Parent:FindFirstChild("Humanoid").Health > 0 do
-            dodgeDanger(root)  -- Dodge dangerous parts
-            local targetPos = enemyRoot.Position + Vector3.new(0, 5, 0)
-            local tweenInfo = TweenInfo.new(getgenv().tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
-            TS:Create(root, tweenInfo, {CFrame = CFrame.new(targetPos)}):Play()
-            wait(0.1)
-        end
-    end)()
-end
-
--- Attack the enemy continuously
-local function attackEnemy()
-    if RS:FindFirstChild("dataRemoteEvent") then
-        RS.dataRemoteEvent:FireServer({{["animationLength"] = 0, ["sentAt"] = tick()}, "C"})
-    end
-end
-
--- Scan dungeon and attack all enemies
-local function scanAndAttackEnemies()
-    local dungeon = workspace:FindFirstChild("dungeon")
-    if dungeon then
-        for _, obj in pairs(dungeon:GetDescendants()) do
-            local humanoid = obj:FindFirstChild("Humanoid")
-            local root = obj:FindFirstChild("HumanoidRootPart")
-            if humanoid and root and humanoid.Health > 0 then
-                moveToEnemy(root)  -- Move to the enemy
-                while humanoid.Health > 0 and getgenv().autofarm do
-                    attackEnemy()
-                    wait(getgenv().attackSpeed)  -- Control attack speed
-                end
-            end
-        end
-    end
-end
-
 -- Main autofarm loop
 local function autofarmLoop()
     coroutine.wrap(retryAndStartLoop)()  -- Start retry loop
@@ -86,8 +83,19 @@ local function autofarmLoop()
     end
 end
 
--- Wait for the player's character to load before starting the autofarm
-waitForCharacter()
+-- Function to initialize the script after respawn
+local function onCharacterAdded(character)
+    -- Ensure HumanoidRootPart exists before starting
+    character:WaitForChild("HumanoidRootPart")
 
--- Start the autofarm loop
-autofarmLoop()
+    -- Start the autofarm loop
+    autofarmLoop()
+end
+
+-- Start the autofarm immediately if the character is already loaded
+if player.Character then
+    onCharacterAdded(player.Character)
+end
+
+-- Connect to the CharacterAdded event to restart autofarm after death/respawn
+player.CharacterAdded:Connect(onCharacterAdded)
