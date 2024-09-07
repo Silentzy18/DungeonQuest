@@ -6,16 +6,16 @@ local player = game.Players.LocalPlayer
 -- Function to handle movement towards enemies and tween above them
 local function moveToEnemy(enemyRoot)
     local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return end
+    if not root then return end  -- Ensure root exists before proceeding
 
     coroutine.wrap(function()
-        while getgenv().autofarm and enemyRoot and enemyRoot.Parent:FindFirstChild("Humanoid").Health > 0 do
+        while getgenv().autofarm and enemyRoot and enemyRoot.Parent:FindFirstChild("Humanoid") and enemyRoot.Parent.Humanoid.Health > 0 do
             dodgeDanger(root)  -- Dodge dangerous parts
-            
+
             -- Calculate the position above the enemy using the adjustable height
             local targetPos = enemyRoot.Position + Vector3.new(0, getgenv().aboveEnemyHeight, 0)  -- Adjust height using aboveEnemyHeight
             local tweenInfo = TweenInfo.new(getgenv().tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
-            
+
             -- Tween to the position above the enemy
             TS:Create(root, tweenInfo, {CFrame = CFrame.new(targetPos)}):Play()
             wait(0.1)
@@ -48,7 +48,7 @@ local function scanAndAttackEnemies()
             local humanoid = obj:FindFirstChild("Humanoid")
             local root = obj:FindFirstChild("HumanoidRootPart")
             if humanoid and root and humanoid.Health > 0 then
-                moveToEnemy(root)  -- Move above the enemy
+                moveToEnemy(root)  -- Move to the enemy
                 while humanoid.Health > 0 and getgenv().autofarm do
                     attackEnemy()
                     wait(getgenv().attackSpeed)  -- Control attack speed
@@ -75,10 +75,7 @@ end
 local function autofarmLoop()
     coroutine.wrap(retryAndStartLoop)()  -- Start retry loop
     while getgenv().autofarm do
-        local success, errorMsg = pcall(scanAndAttackEnemies)  -- Scan and attack enemies
-        if not success then
-            warn("Error in autofarm loop: " .. errorMsg)
-        end
+        pcall(scanAndAttackEnemies)  -- Scan and attack enemies
         wait(0.1)  -- Short delay between scans
     end
 end
