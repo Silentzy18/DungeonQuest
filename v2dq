@@ -5,19 +5,24 @@ local player = game.Players.LocalPlayer
 
 -- Function to handle movement towards enemies and tween above them
 local function moveToEnemy(enemyRoot)
+    -- Ensure player has a character and HumanoidRootPart before proceeding
     local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return end  -- Ensure root exists before proceeding
+    if not root or not enemyRoot then return end  -- Exit early if critical parts are missing
 
     coroutine.wrap(function()
-        while getgenv().autofarm and enemyRoot and enemyRoot.Parent:FindFirstChild("Humanoid") and enemyRoot.Parent.Humanoid.Health > 0 do
+        while getgenv().autofarm and enemyRoot and enemyRoot.Parent and enemyRoot.Parent:FindFirstChild("Humanoid") and enemyRoot.Parent.Humanoid.Health > 0 do
             dodgeDanger(root)  -- Dodge dangerous parts
 
             -- Calculate the position above the enemy using the adjustable height
             local targetPos = enemyRoot.Position + Vector3.new(0, getgenv().aboveEnemyHeight, 0)  -- Adjust height using aboveEnemyHeight
             local tweenInfo = TweenInfo.new(getgenv().tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
 
-            -- Tween to the position above the enemy
-            TS:Create(root, tweenInfo, {CFrame = CFrame.new(targetPos)}):Play()
+            -- Ensure root and target position exist before tweening
+            if root and targetPos then
+                TS:Create(root, tweenInfo, {CFrame = CFrame.new(targetPos)}):Play()
+            else
+                return  -- Exit if root or targetPos is nil
+            end
             wait(0.1)
         end
     end)()
@@ -25,13 +30,15 @@ end
 
 -- Attack the enemy continuously
 local function attackEnemy()
-    if RS:FindFirstChild("dataRemoteEvent") then
-        RS.dataRemoteEvent:FireServer({{["animationLength"] = 0, ["sentAt"] = tick()}, "C"})
+    local remote = RS:FindFirstChild("dataRemoteEvent")
+    if remote then
+        remote:FireServer({{["animationLength"] = 0, ["sentAt"] = tick()}, "C"})
     end
 end
 
 -- Fast dodging of nearby parts
 local function dodgeDanger(root)
+    if not root then return end  -- Exit if root is nil
     for _, part in pairs(workspace:GetChildren()) do
         if part:IsA("BasePart") and (root.Position - part.Position).Magnitude < getgenv().dodgeRange then
             local safePos = part.Position + (root.Position - part.Position).Unit * (part.Size.Magnitude / 2 + getgenv().extraSafeDistance)
@@ -61,11 +68,13 @@ end
 -- Fire retry vote and start button every few seconds
 local function retryAndStartLoop()
     while getgenv().autofarm do
-        if RS:FindFirstChild("dataRemoteEvent") then
-            RS.dataRemoteEvent:FireServer({{["\3"] = "vote", ["vote"] = true}, ","})  -- Retry vote
+        local retryRemote = RS:FindFirstChild("dataRemoteEvent")
+        if retryRemote then
+            retryRemote:FireServer({{["\3"] = "vote", ["vote"] = true}, ","})  -- Retry vote
         end
-        if RS.remotes:FindFirstChild("changeStartValue") then
-            RS.remotes.changeStartValue:FireServer()  -- Start button
+        local startRemote = RS.remotes and RS.remotes:FindFirstChild("changeStartValue")
+        if startRemote then
+            startRemote:FireServer()  -- Start button
         end
         wait(getgenv().retryInterval)
     end
